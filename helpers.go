@@ -1,6 +1,8 @@
 package celeritas
 
-import "os"
+import (
+	"os"
+)
 
 func (c *Celeritas) CreateDirIfNotExist(path string) error {
 	const mode = 0755
@@ -12,5 +14,18 @@ func (c *Celeritas) CreateDirIfNotExist(path string) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *Celeritas) CreateFileIfNotExist(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		file, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
+	}
 	return nil
 }
