@@ -2,14 +2,19 @@ package celeritas
 
 import (
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 const version = "1.0.0"
 
+// Celeritas is the overall type for the Celeritas package. Members that are exported in this
+// type are available to any application that uses it.
 type Celeritas struct {
 	AppName  string
 	Debug    bool
@@ -17,8 +22,17 @@ type Celeritas struct {
 	ErrorLog *log.Logger
 	InfoLog  *log.Logger
 	RootPath string
+	config   config
+	Routes   *chi.Mux
 }
 
+type config struct {
+	port     string
+	renderer string
+}
+
+// New reads the .env file, creates our application config, populates the Celeritas type
+// with settings based on .env values, and creates necessary folders and files if they don't exist
 func (c *Celeritas) New(rootPath string) error {
 	pathConfig := initPaths{
 		rootPath: rootPath,
@@ -47,10 +61,18 @@ func (c *Celeritas) New(rootPath string) error {
 	c.ErrorLog = errorLog
 	c.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
 	c.Version = version
+	c.RootPath = rootPath
+	c.Routes = c.routes().(*chi.Mux)
+
+	c.config = config{
+		port:     os.Getenv("PORT"),
+		renderer: os.Getenv("RENDERER"),
+	}
 
 	return nil
 }
 
+// Init creates necessary folders for our Celeritas application
 func (c *Celeritas) Init(p initPaths) error {
 	root := p.rootPath
 
@@ -62,6 +84,20 @@ func (c *Celeritas) Init(p initPaths) error {
 	}
 
 	return nil
+}
+
+func (c *Celeritas) ListenAndServe() {
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%s", os.Getenv("PORT")),
+		ErrorLog:     c.ErrorLog,
+		Handler:      c.routes(),
+		IdleTimeout:  30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 600 * time.Second,
+	}
+
+	c.InfoLog.Printf("Listening on port %s...", os.Getenv("PORT"))
+	c.ErrorLog.Fatal(srv.ListenAndServe())
 }
 
 func (c *Celeritas) checkDotEnv(root string) error {
